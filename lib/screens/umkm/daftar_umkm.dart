@@ -13,13 +13,14 @@ class _DaftarUMKMScreenState extends State<DaftarUMKMScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> produkUMKM = [];
   List<Map<String, dynamic>> _filteredProduk = [];
+  Set<String> favoriteProdukIds = {};
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     fetchProduk();
-
+    fetchFavorit();
     _searchController.addListener(() {
       final keyword = _searchController.text.toLowerCase();
       setState(() {
@@ -44,10 +45,45 @@ class _DaftarUMKMScreenState extends State<DaftarUMKMScreen> {
         _filteredProduk = List.from(produkUMKM);
         _isLoading = false;
       });
-    } catch (e, stack) {
+    } catch (e) {
       print('❌ Error fetchProduk: $e');
-      print('📍 Stacktrace: $stack');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> fetchFavorit() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+    final data = await Supabase.instance.client
+        .from('favorit')
+        .select('produk_id')
+        .eq('user_id', user.id);
+    setState(() {
+      favoriteProdukIds = {for (var item in data) item['produk_id'] as String};
+    });
+  }
+
+  Future<void> toggleFavorite(String produkId) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    if (favoriteProdukIds.contains(produkId)) {
+      await Supabase.instance.client
+          .from('favorit')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('produk_id', produkId);
+      setState(() {
+        favoriteProdukIds.remove(produkId);
+      });
+    } else {
+      await Supabase.instance.client.from('favorit').insert({
+        'user_id': user.id,
+        'produk_id': produkId,
+      });
+      setState(() {
+        favoriteProdukIds.add(produkId);
+      });
     }
   }
 
@@ -64,23 +100,35 @@ class _DaftarUMKMScreenState extends State<DaftarUMKMScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFE6E3CB),
         elevation: 0,
-        title: const Text(
-          'UMKM Kalurahan Sriharjo',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Poppins',
-          ),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/logo-sriharjo.png',
+              height: 30,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'UMKM Kalurahan Sriharjo',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                fontFamily: 'Poppins',
+                color: Colors.black,
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: () {
               setState(() => _isLoading = true);
               fetchProduk();
+              fetchFavorit();
             },
           ),
         ],
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -133,7 +181,13 @@ class _DaftarUMKMScreenState extends State<DaftarUMKMScreen> {
                           crossAxisSpacing: 12,
                           childAspectRatio: 0.75,
                           children: _filteredProduk
-                              .map((produk) => _ItemCard(produk))
+                              .map((produk) => _ItemCard(
+                                    data: produk,
+                                    isFavorit: favoriteProdukIds
+                                        .contains(produk['id']),
+                                    onToggleFavorit: () =>
+                                        toggleFavorite(produk['id']),
+                                  ))
                               .toList(),
                         ),
             ),
@@ -166,7 +220,14 @@ class _DaftarUMKMScreenState extends State<DaftarUMKMScreen> {
 
 class _ItemCard extends StatelessWidget {
   final Map<String, dynamic> data;
-  const _ItemCard(this.data);
+  final bool isFavorit;
+  final VoidCallback onToggleFavorit;
+
+  const _ItemCard({
+    required this.data,
+    required this.isFavorit,
+    required this.onToggleFavorit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -238,7 +299,13 @@ class _ItemCard extends StatelessWidget {
                               }
                             },
                           ),
-                        const Icon(Icons.bookmark_border, size: 16),
+                        IconButton(
+                          icon: Icon(
+                            isFavorit ? Icons.bookmark : Icons.bookmark_border,
+                            size: 18,
+                          ),
+                          onPressed: onToggleFavorit,
+                        )
                       ],
                     ),
                   )

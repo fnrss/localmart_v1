@@ -1,7 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lokalmart/screens/profile/edit_profile.dart';
+import 'package:lokalmart/screens/profile/keamanan_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String nama = '';
+  String avatarUrl = '';
+  String? userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    userId = prefs.getString('user_id');
+
+    if (userId == null) return;
+
+    final data = await Supabase.instance.client
+        .from('profile')
+        .select('nama, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (data != null && mounted) {
+      setState(() {
+        nama = data['nama'] ?? '';
+        avatarUrl = data['avatar_url'] ?? '';
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,23 +53,20 @@ class ProfileScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 90,
-                height: 90,
-                decoration: const BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage("assets/images/Avatar.png"),
-                    fit: BoxFit.cover,
-                  ),
-                ),
+              CircleAvatar(
+                radius: 45,
+                backgroundImage: avatarUrl.isNotEmpty
+                    ? NetworkImage(avatarUrl)
+                    : const AssetImage('assets/images/Avatar.png')
+                        as ImageProvider,
               ),
               const SizedBox(width: 20),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Naufal Nanda Anjaya',
-                    style: TextStyle(
+                  Text(
+                    nama.isNotEmpty ? nama : 'Nama Pengguna',
+                    style: const TextStyle(
                       color: Colors.black,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -39,7 +75,16 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/editProfile'),
+                    onTap: () async {
+                      final shouldRefresh = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen()),
+                      );
+                      if (shouldRefresh == true) {
+                        _loadProfile();
+                      }
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 6),
@@ -89,7 +134,7 @@ class ProfileScreen extends StatelessWidget {
                       'Favorite Saya', '/favorite'),
                   _buildMenuItem(context, 'assets/images/kebijakan.png',
                       'Kebijakan Privasi', '/kebijakan'),
-                  // Item "Terakhir Dilihat" telah dihapus di sini
+                  _buildKeamananItem(context),
                   _buildLogoutItem(context),
                 ],
               ),
@@ -162,6 +207,11 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildKeamananItem(BuildContext context) {
+    return _buildMenuItem(
+        context, 'assets/images/keamanann.png', 'Keamanan', '/keamanan');
+  }
+
   Widget _buildLogoutItem(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -216,59 +266,19 @@ class ProfileScreen extends StatelessWidget {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pushReplacementNamed(context, '/awal'),
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('user_id');
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                    context, '/awal', (route) => false);
+              }
+            },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Keluar'),
           ),
         ],
       ),
-    );
-  }
-
-  void _showEditProfileDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Edit Profile',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () {},
-                child: const CircleAvatar(
-                  radius: 30,
-                  backgroundImage: AssetImage('assets/images/Avatar.png'),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Baru',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
