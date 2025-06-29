@@ -25,13 +25,43 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
-      if (response.session != null) {
-        Navigator.pushReplacementNamed(context, '/beranda');
+      final user = response.user;
+      if (user != null) {
+        await _cekDanBuatProfileJikaBelumAda(user.id);
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/beranda');
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Login gagal: ${e.toString()}')),
       );
+    }
+  }
+
+  Future<void> _cekDanBuatProfileJikaBelumAda(String userId) async {
+    final supabase = Supabase.instance.client;
+
+    try {
+      final data = await supabase
+          .from('profile')
+          .select('id')
+          .eq('id', userId)
+          .maybeSingle();
+
+      if (data == null) {
+        await supabase.from('profile').insert({
+          'id': userId,
+          'nama': 'Pengguna Baru',
+          'alamat': '',
+          'no_telepon': '',
+          'jenis_kelamin': 'Laki-laki',
+          'avatar_url': '',
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal insert atau cek profile: $e');
     }
   }
 
@@ -45,12 +75,11 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFFE6E3CB),
       body: Column(
         children: [
-          const SizedBox(height: 100), // Tambah jarak atas
+          const SizedBox(height: 100),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 30),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment
-                  .center, // Ubah jadi center biar sejajar vertikal
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
@@ -64,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: Color(0xFF424021),
                         ),
                       ),
-                      SizedBox(height: 2), // Jarak antar teks
+                      SizedBox(height: 2),
                       Text(
                         'Selamat datang di lokalmart',
                         style: TextStyle(
@@ -78,12 +107,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 SizedBox(width: 25),
                 Image.asset(
                   'assets/images/Logo-icon.png',
-                  width: 135, // Bisa disesuaikan agar proporsional
+                  width: 135,
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 66),
           Expanded(
             child: Container(
@@ -121,8 +149,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       iconPath: 'assets/images/icon-lock.png',
                       obscureText: _obscurePassword,
                       suffixIcon: IconButton(
-                        icon: Image.asset('assets/images/icon-hide.png',
-                            width: 20),
+                        icon: Image.asset(
+                          'assets/images/icon-hide.png',
+                          width: 20,
+                        ),
                         onPressed: () {
                           setState(() {
                             _obscurePassword = !_obscurePassword;

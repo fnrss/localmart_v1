@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lokalmart/screens/profile/edit_profile.dart';
 import 'package:lokalmart/screens/profile/keamanan_screen.dart';
 
@@ -14,7 +13,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String nama = '';
   String avatarUrl = '';
-  String? userId;
 
   @override
   void initState() {
@@ -23,15 +21,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    userId = prefs.getString('user_id');
-
-    if (userId == null) return;
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
 
     final data = await Supabase.instance.client
         .from('profile')
         .select('nama, avatar_url')
-        .eq('id', userId)
+        .eq('id', user.id)
         .maybeSingle();
 
     if (data != null && mounted) {
@@ -267,11 +263,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('user_id');
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                    context, '/awal', (route) => false);
+              await Supabase.instance.client.auth.signOut();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, '/awal');
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
